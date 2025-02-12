@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Discord 通報ツール</title>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Roboto', sans-serif;
+      background: #eceff1;
+      color: #333;
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    h1, h2, h3 { margin: 0; }
+    /* ヘッダー */
+    .header {
+      width: 100%;
+      background: linear-gradient(135deg, #2196F3, #21CBF3);
+      color: #fff;
+      padding: 30px 20px;
+      text-align: center;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .header h1 { font-size: 2.5rem; font-weight: 700; }
+    .header h2 { font-size: 1.2rem; font-weight: 300; margin-top: 8px; }
+    /* カード（フォーム） */
+    .card {
+      background: #fff;
+      width: 100%;
+      max-width: 800px;
+      padding: 25px 30px;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      margin-bottom: 30px;
+    }
+    .card label { display: block; margin-bottom: 5px; font-weight: 500; }
+    .card input[type="text"],
+    .card textarea {
+      width: 100%;
+      padding: 12px 15px;
+      margin-bottom: 20px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 1rem;
+      transition: border-color 0.3s;
+    }
+    .card input:focus,
+    .card textarea:focus { border-color: #2196F3; outline: none; }
+    .card textarea { resize: vertical; min-height: 100px; }
+    .btn {
+      display: inline-block;
+      background: #2196F3;
+      color: #fff;
+      border: none;
+      padding: 12px 20px;
+      font-size: 1rem;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.3s;
+      width: 100%;
+    }
+    .btn:disabled { background: #90caf9; cursor: not-allowed; }
+    .btn:hover:not(:disabled) { background: #1976D2; }
+    /* アコーディオン基本スタイル */
+    .accordion {
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-bottom: 15px;
+    }
+    .accordion.nested {
+      margin: 10px 0 0 15px;
+      border-color: #bbb;
+    }
+    .accordion-header {
+      background: #f5f5f5;
+      padding: 15px 20px;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: background 0.3s;
+      touch-action: pan-y;
+    }
+    .accordion-header:hover { background: #e0e0e0; }
+    .accordion-header h3 { margin: 0; font-size: 1rem; }
+    .accordion-header .arrow { transition: transform 0.3s; font-size: 1.2rem; }
+    .accordion-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+      background: #fafafa;
+      padding: 0 20px;
+    }
+    .accordion-content.open { padding: 15px 20px; overflow-y: auto; }
+    .accordion-content label { display: block; margin-bottom: 10px; font-weight: 400; cursor: pointer; }
+    .accordion-content label input { margin-right: 5px; }
+    /* Fieldset */
+    fieldset { border: none; margin: 0; padding: 0; }
+    fieldset legend { font-size: 1rem; margin-bottom: 10px; font-weight: 500; }
+    /* ログ表示エリア */
+    .log {
+      background: #fff;
+      width: 100%;
+      max-width: 800px;
+      padding: 20px 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      margin-bottom: 30px;
+    }
+    .log h2 { font-size: 1.1rem; color: #2196F3; margin-bottom: 10px; }
+    .log input[type="text"] {
+      background: #eceff1;
+      border: none;
+      font-size: 0.95rem;
+      margin-bottom: 15px;
+      padding: 10px;
+      border-radius: 5px;
+      width: 100%;
+    }
+    .log ul { list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto; }
+    .log ul li { padding: 5px 0; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
+    .log ul li:last-child { border-bottom: none; }
+    .log ul li.error { color: #e53935; font-weight: 500; }
+    /* レスポンシブ */
+    @media (max-width: 480px) {
+      .header h1 { font-size: 2rem; }
+      .header h2 { font-size: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <!-- ヘッダー -->
+  <header class="header">
+    <h1>disport</h1>
+    <h2>Auto Report Tool</h2>
+  </header>
+
+  <!-- 入力フォームカード -->
+  <div class="card">
+    <!-- 基本入力 -->
+    <label for="token">TOKEN (改行区切り)</label>
+    <textarea id="token" placeholder="例: token1&#10;token2&#10;..."></textarea>
+
+    <label for="channelId">Channel ID</label>
+    <input type="text" id="channelId" placeholder="通報対象チャンネルのID">
+
+    <label for="messageId">Message ID</label>
+    <input type="text" id="messageId" placeholder="通報対象メッセージのID">
+
+    <!-- Report Type 全体 -->
+    <fieldset>
+      <legend>Report Type</legend>
+
+      <!-- トップレベル -->
+      <label>
+        <input type="radio" name="type" value="29">
+        気に入らない
+      </label>
+      <label>
+        <input type="radio" name="type" value="30">
+        スパム
+      </label>
+
+      <!-- 攻撃またはハラスメント -->
+      <div class="accordion" id="accordion-harassment">
+        <div class="accordion-header">
+          <h3>攻撃またはハラスメント</h3>
+          <span class="arrow">&#9660;</span>
+        </div>
+        <div class="accordion-content">
+          <label>
+            <input type="radio" name="type" value="1">
+            私または他人に対する言葉での嫌がらせ
+          </label>
+          <label>
+            <input type="radio" name="type" value="2">
+            無礼、卑猥、または攻撃的な言葉遣い
+          </label>
+          <label>
+            <input type="radio" name="type" value="3">
+            アイデンティティや弱みを理由としたヘイトを助長している
+          </label>
+
+          <!-- 露骨な表現、残酷なコンテンツ、望んでない性的コンテンツ -->
+          <div class="accordion nested" id="accordion-explicit">
+            <div class="accordion-header">
+              <h3>露骨な表現、残酷なコンテンツ、望んでない性的コンテンツ</h3>
+              <span class="arrow">&#9660;</span>
+            </div>
+            <div class="accordion-content">
+              <label>
+                <input type="radio" name="type" value="4">
+                ゴア（流血）、動物虐待、他人にショックを与えることを意図した暴力的なコンテンツ
+              </label>
+              <label>
+                <input type="radio" name="type" value="5">
+                成人を描いた、望んでない性的画像
+              </label>
+              <label>
+                <input type="radio" name="type" value="6">
+                成人を描いた侮辱的なポルノ
+              </label>
+              <label>
+                <input type="radio" name="type" value="7">
+                リベンジポルノ、またはリベンジポルノを共有するという脅し
+              </label>
+            </div>
+          </div>
+
+          <!-- 未成年者の関わる性的コンテンツまたは性的行為 -->
+          <div class="accordion nested" id="accordion-minor-h">
+            <div class="accordion-header">
+              <h3>未成年者の関わる性的コンテンツまたは性的行為</h3>
+              <span class="arrow">&#9660;</span>
+            </div>
+            <div class="accordion-content">
+              <label>
+                <input type="radio" name="type" value="8">
+                未成年者を性的に扱うイラスト（「ロリコン」、「ショタコン」、「幼獣ポルノ」など）
+              </label>
+              <label>
+                <input type="radio" name="type" value="9">
+                未成年者について性的な話をしている人物がいる
+              </label>
+              <label>
+                <input type="radio" name="type" value="10">
+                未成年者に性的な示唆を含む、または性的なメッセージを送っている人物がいる
+              </label>
+              <label>
+                <input type="radio" name="type" value="11">
+                未成年者が性的なメッセージを投稿または送信している
+              </label>
+              <label>
+                <input type="radio" name="type" value="12">
+                現実の子供に対する性的虐待の写真または動画
+              </label>
+            </div>
+          </div>
+
+          <!-- 別のアカウントを作ってBANまたはブロックを回避している -->
+          <div class="accordion nested" id="accordion-account-avoid">
+            <div class="accordion-header">
+              <h3>別のアカウントを作ってBANまたはブロックを回避している</h3>
+              <span class="arrow">&#9660;</span>
+            </div>
+            <div class="accordion-content">
+              <label>
+                <input type="radio" name="type" value="15">
+                別のDiscordサーバーを攻撃すると脅している
+              </label>
+              <label>
+                <input type="radio" name="type" value="16">
+                現行のレイドを宣言または奨励している
+              </label>
+              <label>
+                <input type="radio" name="type" value="17">
+                Banされたにもかかわらず再度サーバーに参加した
+              </label>
+              <label>
+                <input type="radio" name="type" value="18">
+                ブロックしたにもかかわらずメッセージを送ってきている
+              </label>
+            </div>
+          </div>
+
+          <!-- 暴力を振るう、または現実世界で危害を加えると脅している -->
+          <div class="accordion nested" id="accordion-physical-threat">
+            <div class="accordion-header">
+              <h3>暴力を振るう、または現実世界で危害を加えると脅している</h3>
+              <span class="arrow">&#9660;</span>
+            </div>
+            <div class="accordion-content">
+              <label>
+                <input type="radio" name="type" value="19">
+                私または他の誰かを物理的に傷つけるという脅迫
+              </label>
+              <label>
+                <input type="radio" name="type" value="20">
+                暴力行為の賛美または美化している
+              </label>
+            </div>
+          </div>
+
+          <!-- 未成年者をターゲットにした、または未成年者がかかわるコンテンツ -->
+          <div class="accordion nested" id="accordion-minor-target">
+            <div class="accordion-header">
+              <h3>未成年者をターゲットにした、または未成年者がかかわるコンテンツ</h3>
+              <span class="arrow">&#9660;</span>
+            </div>
+            <div class="accordion-content">
+              <label>
+                <input type="radio" name="type" value="21">
+                未成年者を性的に扱うイラスト（「ロリコン」、「ショタコン」、「幼獣ポルノ」など）
+              </label>
+              <label>
+                <input type="radio" name="type" value="22">
+                未成年者について性的な話をしている人物がいる
+              </label>
+              <label>
+                <input type="radio" name="type" value="23">
+                未成年者に性的な示唆を含む、または性的なメッセージを送っている人物がいる
+              </label>
+              <label>
+                <input type="radio" name="type" value="24">
+                未成年者が性的なメッセージを投稿または送信している
+              </label>
+              <label>
+                <input type="radio" name="type" value="25">
+                現実の子供に対する性的虐待の写真または動画
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 有害な誤情報または暴力の是認 -->
+      <div class="accordion" id="accordion-misinfo">
+        <div class="accordion-header">
+          <h3>有害な誤情報または暴力の是認</h3>
+          <span class="arrow">&#9660;</span>
+        </div>
+        <div class="accordion-content">
+          <!-- 誤情報または陰謀論を広めている -->
+          <div class="accordion nested" id="accordion-misinfo-sub">
+            <div class="accordion-header">
+              <h3>誤情報または陰謀論の拡散</h3>
+              <span class="arrow">&#9660;</span>
+            </div>
+            <div class="accordion-content">
+              <label>
+                <input type="radio" name="type" value="26">
+                自分または知人について悪口を言っている
+              </label>
+              <label>
+                <input type="radio" name="type" value="27">
+                フェイクニュースや有害な陰謀論を広めている
+              </label>
+            </div>
+          </div>
+          <label>
+            <input type="radio" name="type" value="28">
+            暴力行為を賛美または美化している
+          </label>
+          <label>
+            <input type="radio" name="type" value="13">
+            アイデンティティや弱みを理由としたヘイトを助長している
+          </label>
+        </div>
+      </div>
+
+      <!-- 個人を特定できる情報を晒している -->
+      <label style="display:block; margin-top:15px;">
+        <input type="radio" name="type" id="type-personal" value="30">
+        個人を特定できる情報を晒している
+      </label>
+      <div class="accordion" id="accordion-pii">
+        <div class="accordion-header">
+          <h3>個人情報の詳細を選択</h3>
+          <span class="arrow">&#9660;</span>
+        </div>
+        <div class="accordion-content">
+          <div style="margin-bottom:10px;">
+            <label><input type="checkbox" id="type4-1" value="physical_address"> 住所または職場の住所</label>
+          </div>
+          <div style="margin-bottom:10px;">
+            <label><input type="checkbox" id="type4-2" value="phone_info"> 電話番号</label>
+          </div>
+          <div style="margin-bottom:10px;">
+            <label><input type="checkbox" id="type4-3" value="credit_info"> クレジットカード情報</label>
+          </div>
+          <div style="margin-bottom:10px;">
+            <label><input type="checkbox" id="type4-4" value="email_address"> メールアドレス</label>
+          </div>
+          <div style="margin-bottom:10px;">
+            <label><input type="checkbox" id="type4-5" value="legal_name"> 実名</label>
+          </div>
+          <div style="margin-bottom:10px;">
+            <label><input type="checkbox" id="type4-6" value="ip_address"> IPアドレス</label>
+          </div>
+          <div style="margin-bottom:10px;">
+            <label><input type="checkbox" id="type4-7" value="face_pic"> 顔写真</label>
+          </div>
+          <div>
+            <label><input type="checkbox" id="type4-8" value="revenge_porn"> プライベート性の高い写真</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- その他 -->
+      <div class="accordion" id="accordion-others">
+        <div class="accordion-header">
+          <h3>その他</h3>
+          <span class="arrow">&#9660;</span>
+        </div>
+        <div class="accordion-content">
+          <!-- Discord最低年齢 -->
+          <div class="accordion nested" id="accordion-age">
+            <div class="accordion-header">
+              <h3>Discordを使える最低年齢に達していない</h3>
+              <span class="arrow">&#9660;</span>
+            </div>
+            <div class="accordion-content">
+              <label>
+                <input type="radio" name="type" value="31">
+                はい、このメッセージ内で年齢を宣言している
+              </label>
+              <label>
+                <input type="radio" name="type" value="32">
+                いいえ、このメッセージ内で年齢を宣言していない（通報不能）
+              </label>
+            </div>
+          </div>
+          <!-- 自傷行為または自殺に言及している -->
+          <div class="accordion nested" id="accordion-selfharm">
+            <div class="accordion-header">
+              <h3>自傷行為または自殺に言及している</h3>
+              <span class="arrow">&#9660;</span>
+            </div>
+            <div class="accordion-content">
+              <label>
+                <input type="radio" name="type" value="33">
+                自傷行為を計画しているのではないかと懸念される
+              </label>
+              <label>
+                <input type="radio" name="type" value="34">
+                他者に自傷行為を促している
+              </label>
+            </div>
+          </div>
+          <!-- BAN回避、レイド、別アカウントの使用 -->
+          <div class="accordion nested" id="accordion-banraid">
+            <div class="accordion-header">
+              <h3>BAN回避、レイド、別アカウントの使用</h3>
+              <span class="arrow">&#9660;</span>
+            </div>
+            <div class="accordion-content">
+              <label>
+                <input type="radio" name="type" value="35">
+                別のDiscordサーバーを攻撃すると脅している
+              </label>
+              <label>
+                <input type="radio" name="type" value="36">
+                現行のレイドを宣言または奨励している
+              </label>
+              <label>
+                <input type="radio" name="type" value="37">
+                BANされているにもかかわらず再度サーバーに参加した
+              </label>
+              <label>
+                <input type="radio" name="type" value="38">
+                ブロックしたにもかかわらずメッセージを送ってきている
+              </label>
+            </div>
+          </div>
+          <!-- 有害な誤情報または暴力の是認（その他側） -->
+          <div class="accordion nested" id="accordion-others-misinfo">
+            <div class="accordion-header">
+              <h3>有害な誤情報または暴力の是認</h3>
+              <span class="arrow">&#9660;</span>
+            </div>
+            <div class="accordion-content">
+              <div class="accordion nested" id="accordion-others-misinfo-sub">
+                <div class="accordion-header">
+                  <h3>誤情報または陰謀論の拡散</h3>
+                  <span class="arrow">&#9660;</span>
+                </div>
+                <div class="accordion-content">
+                  <label>
+                    <input type="radio" name="type" value="39">
+                    自分または知人について悪口を言っている
+                  </label>
+                  <label>
+                    <input type="radio" name="type" value="40">
+                    フェイクニュースや有害な陰謀論を広めている
+                  </label>
+                </div>
+              </div>
+              <label>
+                <input type="radio" name="type" value="41">
+                暴力行為を賛美または美化している
+              </label>
+              <label>
+                <input type="radio" name="type" value="42">
+                アイデンティティや弱みを理由としたヘイトを助長している
+              </label>
+            </div>
+          </div>
+          <!-- なりすまし、欺瞞、詐欺 -->
+          <div class="accordion nested" id="accordion-impersonate">
+            <div class="accordion-header">
+              <h3>なりすまし、欺瞞、詐欺</h3>
+              <span class="arrow">&#9660;</span>
+            </div>
+            <div class="accordion-content">
+              <label>
+                <input type="radio" name="type" value="43">
+                従業員またはサポートエージェントへの成りすまし行為
+              </label>
+              <label>
+                <input type="radio" name="type" value="44">
+                自分または知人への成りすまし行為
+              </label>
+              <label>
+                <input type="radio" name="type" value="45">
+                セレブリティまたは公人への成りすまし行為
+              </label>
+              <label>
+                <input type="radio" name="type" value="46">
+                ビジネスまたは組織への成りすまし行為
+              </label>
+              <label>
+                <input type="radio" name="type" value="47">
+                詐欺または詐称
+              </label>
+            </div>
+          </div>
+          <!-- Standalone その他 -->
+          <label>
+            <input type="radio" name="type" value="48">
+            盗まれたアカウントやクレジットカードの配布
+          </label>
+          <label>
+            <input type="radio" name="type" value="49">
+            ドラックやその他の禁制品の販売
+          </label>
+          <label>
+            <input type="radio" name="type" value="50">
+            ハック、チート、フィッシング、その他悪意あるリンクの送信
+          </label>
+        </div>
+      </div>
+    </fieldset>
+    <button id="startButton" class="btn" onclick="start()">開始</button>
+  </div>
+
+  <!-- ログ表示エリア -->
+  <div class="log">
+    <h2>Status</h2>
+    <input type="text" readonly id="status" value="Status: ready">
+    <h2>reportID</h2>
+    <ul id="reportID"></ul>
+    <h2>Error Log</h2>
+    <ul id="errorLog"></ul>
+    <button class="btn" onclick="reset()">ログのリセット</button>
+  </div>
+
+  <script>
+    // ----- アコーディオンの初期化 -----
+    function initAccordion(id) {
+      const acc = document.getElementById(id);
+      if (!acc) return;
+      const header = acc.querySelector('.accordion-header');
+      const content = acc.querySelector('.accordion-content');
+      const arrow = header.querySelector('.arrow');
+      content.style.maxHeight = "0px";
+      header.addEventListener("click", () => {
+        // 内部にラジオボタンがあれば自動選択（未選択の場合）
+        const radios = acc.querySelectorAll('input[type="radio"]');
+        if (radios.length > 0 && !Array.from(radios).some(r => r.checked)) {
+          radios[0].checked = true;
+        }
+        if (content.style.maxHeight === "0px") {
+          content.style.maxHeight = content.scrollHeight + "px";
+          content.classList.add("open");
+          arrow.style.transform = "rotate(180deg)";
+        } else {
+          content.style.maxHeight = "0px";
+          content.classList.remove("open");
+          arrow.style.transform = "rotate(0deg)";
+        }
+      });
+    }
+    const accIds = [
+      "accordion-harassment", "accordion-explicit", "accordion-minor-h",
+      "accordion-account-avoid", "accordion-physical-threat", "accordion-minor-target",
+      "accordion-misinfo", "accordion-misinfo-sub", "accordion-pii", "accordion-others",
+      "accordion-age", "accordion-selfharm", "accordion-banraid", "accordion-others-misinfo", "accordion-impersonate"
+    ];
+    accIds.forEach(id => initAccordion(id));
+
+    // ----- UI/UXとリクエスト処理 -----
+    const statusField = document.getElementById("status");
+    const reportIds = document.getElementById("reportID");
+    const errorLog = document.getElementById("errorLog");
+    const startButton = document.getElementById("startButton");
+    let isProcessing = false;
+
+    async function start() {
+      if (isProcessing) {
+        statusField.value = "Error: 既に処理中です";
+        return;
+      }
+      isProcessing = true;
+      startButton.disabled = true;
+      statusField.value = "Processing...";
+      
+      const tokensText = document.getElementById("token").value.trim();
+      const channelId = document.getElementById("channelId").value.trim();
+      const messageId = document.getElementById("messageId").value.trim();
+      if (!tokensText || !channelId || !messageId) {
+        statusField.value = "Error: 必須項目を全て入力してください";
+        isProcessing = false;
+        startButton.disabled = false;
+        return;
+      }
+      
+      let selectedType = null;
+      document.querySelectorAll('input[name="type"]').forEach(radio => {
+        if (radio.checked) { selectedType = radio.value; }
+      });
+      if (selectedType === null) {
+        statusField.value = "Error: Report Type を選択してください";
+        isProcessing = false;
+        startButton.disabled = false;
+        return;
+      }
+      
+      // 「個人を特定できる情報を晒している」の場合はチェックボックスからpii_selectを収集
+      let piiSelections = [];
+      if (selectedType === "30") {
+        for (let i = 1; i <= 8; i++) {
+          const checkbox = document.getElementById("type4-" + i);
+          if (checkbox && checkbox.checked) { piiSelections.push(checkbox.value); }
+        }
+        if (piiSelections.length === 0) {
+          statusField.value = "Error: 個人情報晒しの場合、少なくとも1項目を選択してください";
+          isProcessing = false;
+          startButton.disabled = false;
+          return;
+        }
+      }
+      
+      // 「いいえ、このメッセージ内で年齢を宣言していない」は通報不可能
+      if (selectedType === "32") {
+        statusField.value = "Error: 通報不可能な項目です";
+        isProcessing = false;
+        startButton.disabled = false;
+        return;
+      }
+      
+      let baseBody = {
+        version: "1.0",
+        variant: "6",
+        language: "en",
+        elements: {},
+        channel_id: channelId,
+        message_id: messageId,
+        name: "message"
+      };
+      
+      // 各選択肢に対応するbreadcrumbsを設定（内部処理）
+      switch(selectedType) {
+        // トップレベル
+        case "29": baseBody.breadcrumbs = [3,78]; break;
+        case "30": baseBody.breadcrumbs = [3,79]; break;
+        // 攻撃またはハラスメント
+        case "1": baseBody.breadcrumbs = [3,57,82]; break;
+        case "2": baseBody.breadcrumbs = [3,57,83]; break;
+        case "3": baseBody.breadcrumbs = [3,57,86]; break;
+        case "4": baseBody.breadcrumbs = [3,57,66,87]; break;
+        case "5": baseBody.breadcrumbs = [3,57,66,88]; break;
+        case "6": baseBody.breadcrumbs = [3,57,66,89]; break;
+        case "7": baseBody.breadcrumbs = [3,57,66,90]; break;
+        case "8": baseBody.breadcrumbs = [3,57,66,68,91]; break;
+        case "9": baseBody.breadcrumbs = [3,57,66,68,92]; break;
+        case "10": baseBody.breadcrumbs = [3,57,68,93]; break;
+        case "11": baseBody.breadcrumbs = [3,57,68,94]; break;
+        case "12": baseBody.breadcrumbs = [3,57,68,95]; break;
+        // 別のアカウントを作ってBANまたはブロックを回避している
+        case "15": baseBody.breadcrumbs = [3,57,74,108]; break;
+        case "16": baseBody.breadcrumbs = [3,57,74,109]; break;
+        case "17": baseBody.breadcrumbs = [3,57,74,110]; break;
+        case "18": baseBody.breadcrumbs = [3,57,74,111]; break;
+        // 暴力を振るう、または現実世界で危害を加えると脅している
+        case "19": baseBody.breadcrumbs = [3,57,70,96]; break;
+        case "20": baseBody.breadcrumbs = [3,57,70,97]; break;
+        // 未成年者をターゲットにした、または未成年者がかかわるコンテンツ
+        case "21": baseBody.breadcrumbs = [3,57,68,91]; break;
+        case "22": baseBody.breadcrumbs = [3,57,68,92]; break;
+        case "23": baseBody.breadcrumbs = [3,57,68,93]; break;
+        case "24": baseBody.breadcrumbs = [3,57,68,94]; break;
+        case "25": baseBody.breadcrumbs = [3,57,68,95]; break;
+        // 有害な誤情報または暴力の是認（攻撃側）
+        case "26": baseBody.breadcrumbs = [3,75,76,82]; break;
+        case "27": baseBody.breadcrumbs = [3,75,76,112]; break;
+        case "28": baseBody.breadcrumbs = [3,75,97]; break;
+        case "13": baseBody.breadcrumbs = [3,75,86]; break;
+        // 個人を特定できる情報
+        case "30":
+          baseBody.breadcrumbs = [3,60,7];
+          baseBody.elements.pii_select = piiSelections;
+          break;
+        // その他グループ
+        // Discord最低年齢
+        case "31": baseBody.breadcrumbs = [3,61,71,106]; break;
+        case "32": break; // 通報不能（エラー処理済み）
+        // 自傷行為
+        case "33": baseBody.breadcrumbs = [3,61,73,113]; break;
+        case "34": baseBody.breadcrumbs = [3,61,73,107]; break;
+        // BAN回避
+        case "35": baseBody.breadcrumbs = [3,61,74,108]; break;
+        case "36": baseBody.breadcrumbs = [3,61,74,109]; break;
+        case "37": baseBody.breadcrumbs = [3,61,74,110]; break;
+        case "38": baseBody.breadcrumbs = [3,61,74,111]; break;
+        // 有害な誤情報または暴力の是認（その他側）
+        case "39": baseBody.breadcrumbs = [3,61,75,76,82]; break;
+        case "40": baseBody.breadcrumbs = [3,61,75,76,112]; break;
+        case "41": baseBody.breadcrumbs = [3,61,75,97]; break;
+        case "42": baseBody.breadcrumbs = [3,61,75,86]; break;
+        // なりすまし、欺瞞、詐欺
+        case "43": baseBody.breadcrumbs = [3,61,100,140]; break;
+        case "44": baseBody.breadcrumbs = [3,61,100,137]; break;
+        case "45": baseBody.breadcrumbs = [3,61,100,138]; break;
+        case "46": baseBody.breadcrumbs = [3,61,100,139]; break;
+        case "47": baseBody.breadcrumbs = [3,61,100,141]; break;
+        // Standalone その他
+        case "48": baseBody.breadcrumbs = [3,61,102]; break;
+        case "49": baseBody.breadcrumbs = [3,61,103]; break;
+        case "50": baseBody.breadcrumbs = [3,61,105]; break;
+        default:
+          statusField.value = "Error: unknown report type";
+          isProcessing = false;
+          startButton.disabled = false;
+          return;
+      }
+      
+      const tokenArray = tokensText.split("\n").filter(t => t.trim() !== "");
+      const requestHeaders = { "Content-Type": "application/json" };
+      const url = "https://discord.com/api/v9/reporting/message";
+      
+      for (const token of tokenArray) {
+        const reqOptions = {
+          method: "POST",
+          headers: { ...requestHeaders, authorization: token },
+          body: JSON.stringify(baseBody)
+        };
+        try {
+          const response = await fetch(url, reqOptions);
+          if (response.ok) {
+            const resJson = await response.json();
+            statusField.value = "success: " + resJson.report_id;
+            const li = document.createElement("li");
+            li.textContent = "reportID: " + resJson.report_id + " (token: " + token + ")";
+            reportIds.appendChild(li);
+          } else {
+            const errorData = await response.json();
+            statusField.value = "error: " + errorData.message + " (token: " + token + ")";
+            const li = document.createElement("li");
+            li.classList.add("error");
+            li.textContent = errorData.message + " (token: " + token + ")";
+            errorLog.appendChild(li);
+          }
+        } catch (e) {
+          statusField.value = "error: " + e.message + " (token: " + token + ")";
+          const li = document.createElement("li");
+          li.classList.add("error");
+          li.textContent = e.message + " (token: " + token + ")";
+          errorLog.appendChild(li);
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      isProcessing = false;
+      startButton.disabled = false;
+    }
+    
+    function saveContent() {
+      document.querySelectorAll("input, textarea").forEach(el => {
+        localStorage.setItem(el.id, el.value);
+      });
+    }
+    function loadContent() {
+      document.querySelectorAll("input, textarea").forEach(el => {
+        const saved = localStorage.getItem(el.id);
+        if (saved) el.value = saved;
+      });
+      document.getElementById("status").value = "Status: ready";
+    }
+    window.addEventListener("beforeunload", saveContent);
+    window.addEventListener("load", loadContent);
+    
+    function reset() { location.reload(); }
+  </script>
+</body>
+</html>
